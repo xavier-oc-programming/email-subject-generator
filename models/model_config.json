@@ -1,0 +1,11 @@
+{
+  "vocab_size": 71,
+  "latent_dim": 256,
+  "embedding_dim": 64,
+  "max_body_len": 200,
+  "max_subject_len": 60,
+  "epochs_trained": 35,
+  "best_val_loss": 1.3705670833587646,
+  "best_val_accuracy": 0.6224095225334167,
+  "training_samples": 17437
+}
