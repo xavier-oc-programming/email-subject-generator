@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Email Subject Generator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #ffffff;
+      color: #1e293b;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: #2563EB;
+      color: #fff;
+      padding: 2rem 1.5rem 1.5rem;
+      text-align: center;
+    }
+
+    header h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    header p.subtitle {
+      margin-top: 0.4rem;
+      font-size: 1rem;
+      opacity: 0.88;
+    }
+
+    header p.model-desc {
+      margin-top: 0.5rem;
+      font-size: 0.78rem;
+      opacity: 0.72;
+      background: rgba(255,255,255,0.12);
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 999px;
+    }
+
+    main {
+      flex: 1;
+      max-width: 780px;
+      width: 100%;
+      margin: 2rem auto;
+      padding: 0 1.25rem 3rem;
+    }
+
+    .card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+
+    label.field-label {
+      display: block;
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: #475569;
+      margin-bottom: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 140px;
+      resize: vertical;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      font-size: 0.95rem;
+      color: #1e293b;
+      line-height: 1.55;
+      transition: border-color 0.15s;
+      font-family: inherit;
+    }
+
+    textarea:focus {
+      outline: none;
+      border-color: #2563EB;
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+    }
+
+    .char-counter {
+      text-align: right;
+      font-size: 0.8rem;
+      color: #94a3b8;
+      margin-top: 0.35rem;
+    }
+
+    .char-counter.warn { color: #f59e0b; }
+    .char-counter.over  { color: #ef4444; }
+
+    .examples-label {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #64748b;
+      margin: 1rem 0 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .example-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .example-btn {
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 0.4rem 0.85rem;
+      font-size: 0.83rem;
+      color: #334155;
+      cursor: pointer;
+      transition: background 0.12s, border-color 0.12s;
+    }
+
+    .example-btn:hover {
+      background: #e0eaff;
+      border-color: #93c5fd;
+      color: #1d4ed8;
+    }
+
+    .generate-btn {
+      margin-top: 1.25rem;
+      width: 100%;
+      background: #2563EB;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+    }
+
+    .generate-btn:hover:not(:disabled) { background: #1d4ed8; }
+    .generate-btn:active:not(:disabled) { transform: scale(0.99); }
+    .generate-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .loader {
+      display: none;
+      text-align: center;
+      margin: 1.5rem 0;
+      color: #64748b;
+      font-size: 0.9rem;
+    }
+
+    .loader .spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 2.5px solid #e2e8f0;
+      border-top-color: #2563EB;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 0.5rem;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #results { margin-top: 1.5rem; }
+
+    .results-header {
+      font-size: 0.85rem;
+      color: #64748b;
+      margin-bottom: 0.75rem;
+    }
+
+    .suggestion-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 0.9rem 1rem;
+      margin-bottom: 0.6rem;
+      background: #fafafa;
+      transition: border-color 0.12s;
+    }
+
+    .suggestion-card:hover { border-color: #93c5fd; }
+
+    .suggestion-text {
+      font-size: 0.97rem;
+      font-weight: 500;
+      color: #0f172a;
+      flex: 1;
+    }
+
+    .suggestion-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-shrink: 0;
+    }
+
+    .style-badge {
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .style-badge.conservative { background: #dbeafe; color: #1d4ed8; }
+    .style-badge.balanced     { background: #d1fae5; color: #065f46; }
+    .style-badge.creative     { background: #ede9fe; color: #5b21b6; }
+
+    .temp-label {
+      font-size: 0.75rem;
+      color: #94a3b8;
+    }
+
+    .copy-btn {
+      background: none;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 0.3rem 0.65rem;
+      font-size: 0.78rem;
+      color: #475569;
+      cursor: pointer;
+      transition: background 0.12s, color 0.12s;
+    }
+
+    .copy-btn:hover { background: #2563EB; color: #fff; border-color: #2563EB; }
+
+    .error-msg {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      color: #b91c1c;
+      font-size: 0.9rem;
+      margin-top: 1rem;
+    }
+
+    .model-info-bar {
+      font-size: 0.76rem;
+      color: #94a3b8;
+      text-align: center;
+      margin-top: 0.75rem;
+    }
+
+    @media (max-width: 540px) {
+      header h1 { font-size: 1.4rem; }
+      .suggestion-card { flex-direction: column; align-items: flex-start; }
+      .suggestion-meta { flex-wrap: wrap; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Email Subject Generator</h1>
+  <p class="subtitle">Generate professional subject line suggestions from your email body</p>
+  <p class="model-desc">Encoder-Decoder LSTM &middot; Character-level generation &middot; AESLC corpus</p>
+</header>
+
+<main>
+  <div class="card">
+    <label class="field-label" for="bodyInput">Email body or topic description</label>
+    <textarea
+      id="bodyInput"
+      placeholder="Paste or type your email body, or describe the topic — e.g. 'Following up on our Q3 budget discussion. Please review and confirm next steps.'"
+      maxlength="500"
+    ></textarea>
+    <div class="char-counter" id="charCounter">0 / 500</div>
+
+    <div class="examples-label">Fill with an example</div>
+    <div class="example-buttons">
+      <button class="example-btn" data-text="Following up on our discussion about the Q3 budget proposal. Please review the attached document and confirm the next steps before Friday.">Project follow-up</button>
+      <button class="example-btn" data-text="I would like to schedule a meeting to discuss the upcoming product launch and align on the timeline for all deliverables across the team.">Meeting request</button>
+      <button class="example-btn" data-text="Please find attached the updated budget proposal for the next fiscal year. I have incorporated the feedback from last week's review session.">Budget proposal</button>
+      <button class="example-btn" data-text="I wanted to reach out regarding the status of the client project. Could you provide an update on the deliverables and any blockers the team is facing?">Client update</button>
+    </div>
+
+    <button class="generate-btn" id="generateBtn">Generate Suggestions</button>
+  </div>
+
+  <div class="loader" id="loader">
+    <span class="spinner"></span> Generating subject lines…
+  </div>
+
+  <div id="results"></div>
+</main>
+
+<script>
+  const textarea = document.getElementById('bodyInput');
+  const counter  = document.getElementById('charCounter');
+  const btn      = document.getElementById('generateBtn');
+  const loader   = document.getElementById('loader');
+  const results  = document.getElementById('results');
+
+  textarea.addEventListener('input', () => {
+    const n = textarea.value.length;
+    counter.textContent = `${n} / 500`;
+    counter.className = 'char-counter' + (n > 450 ? ' warn' : '') + (n >= 500 ? ' over' : '');
+  });
+
+  document.querySelectorAll('.example-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      textarea.value = b.dataset.text;
+      textarea.dispatchEvent(new Event('input'));
+      textarea.focus();
+    });
+  });
+
+  btn.addEventListener('click', async () => {
+    const body = textarea.value.trim();
+    if (body.length < 10) {
+      showError('Please enter at least 10 characters.');
+      return;
+    }
+
+    btn.disabled = true;
+    loader.style.display = 'block';
+    results.innerHTML = '';
+
+    try {
+      const res = await fetch('/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body_text: body, n: 5 })
+      });
+
+      if (res.status === 503) {
+        showError('Model is not loaded. Please run train.py first to train the model.');
+        return;
+      }
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showError(err.detail || `Error ${res.status}`);
+        return;
+      }
+
+      const data = await res.json();
+      renderResults(data);
+    } catch (e) {
+      showError('Network error — is the server running?');
+    } finally {
+      btn.disabled = false;
+      loader.style.display = 'none';
+    }
+  });
+
+  function renderResults(data) {
+    if (!data.suggestions || data.suggestions.length === 0) {
+      results.innerHTML = '<div class="error-msg">No suggestions generated. Try a different input.</div>';
+      return;
+    }
+
+    const header = document.createElement('div');
+    header.className = 'results-header';
+    header.textContent = `${data.n_generated} suggestion${data.n_generated !== 1 ? 's' : ''} generated`;
+    results.appendChild(header);
+
+    data.suggestions.forEach(s => {
+      const card = document.createElement('div');
+      card.className = 'suggestion-card';
+
+      const text = document.createElement('div');
+      text.className = 'suggestion-text';
+      text.textContent = s.subject;
+
+      const meta = document.createElement('div');
+      meta.className = 'suggestion-meta';
+
+      const badge = document.createElement('span');
+      badge.className = `style-badge ${s.style}`;
+      badge.textContent = s.style;
+
+      const temp = document.createElement('span');
+      temp.className = 'temp-label';
+      temp.textContent = `T=${s.temperature.toFixed(2)}`;
+
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'copy-btn';
+      copyBtn.textContent = 'Copy';
+      copyBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText(s.subject).then(() => {
+          copyBtn.textContent = 'Copied!';
+          setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
+        });
+      });
+
+      meta.append(badge, temp, copyBtn);
+      card.append(text, meta);
+      results.appendChild(card);
+    });
+
+    const info = document.createElement('div');
+    info.className = 'model-info-bar';
+    info.textContent = data.model_info;
+    results.appendChild(info);
+  }
+
+  function showError(msg) {
+    results.innerHTML = `<div class="error-msg">${msg}</div>`;
+  }
+</script>
+</body>
+</html>

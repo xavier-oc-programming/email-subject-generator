@@ -1,0 +1,12 @@
+title: Email Subject Generator — Encoder-Decoder LSTM
+slug: email-subject-generator
+category: ai-ml
+date: 2026-06-05
+featured: false
+tags: deep-learning, NLP, text-generation, neural-network, RNN, LSTM, azure, deployment, REST-API, docker, CI-CD, jupyter, web-app
+tech_stack: Python, TensorFlow, Keras, NumPy, Pandas, Matplotlib, FastAPI, Uvicorn, Docker, Azure App Service, GitHub Actions, pytest
+repo_url: https://github.com/xavier-oc-programming/email-subject-generator
+live_url: https://email-subject-gen-xoc.azurewebsites.net
+demo_url: https://email-subject-gen-xoc.azurewebsites.net
+short_description: |
+  Encoder-decoder LSTM that generates professional email subject lines from an email body. Encoder compresses input to a context vector; decoder generates character by character. Five suggestions returned at varying temperature levels.
