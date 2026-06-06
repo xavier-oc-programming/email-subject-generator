@@ -21,6 +21,7 @@ This project generates professional email subject line suggestions from an email
 
 - Python 3.11+
 - No API keys required — model is committed to the repo and loaded at startup
+- Git LFS required to clone the model weights (`git lfs install` before cloning)
 
 ---
 
@@ -37,7 +38,7 @@ pip install -r requirements.txt
 uvicorn main:app --reload
 # → http://localhost:8000
 
-# Or retrain from scratch (30–60 min on Apple Silicon, longer on CPU):
+# Or retrain from scratch (30–60 min on Apple Silicon):
 python train_t5.py
 ```
 
@@ -69,6 +70,7 @@ email-subject-generator/
 │       ├── tokenizer_config.json
 │       ├── config.json
 │       └── generation_config.json
+├── plots/                     # Training and data charts
 └── tests/
     └── test_api.py
 ```
@@ -77,21 +79,21 @@ email-subject-generator/
 
 ## 3. Core concepts
 
-**T5 (Text-to-Text Transfer Transformer).** T5 frames every NLP task as a text-in → text-out problem. For subject generation the input is `"generate subject: <email body>"` and the target is the subject line. The model was pre-trained by Google on 750 GB of text, giving it strong general language understanding before fine-tuning on email data. T5-small has 60M parameters — large enough to produce coherent output, small enough to train in under an hour on a laptop.
+**T5 (Text-to-Text Transfer Transformer).** T5 frames every NLP task as a text-in → text-out problem. For subject generation the input is `"generate subject: <email body>"` and the target is the subject line. The model was pre-trained by Google on 750 GB of text, giving it strong general language understanding before fine-tuning on domain-specific data. T5-small has 60M parameters — large enough to produce coherent output, small enough to train in under an hour on a laptop.
 
-**Encoder-decoder attention.** Unlike an LSTM, which compresses the entire input into a single fixed-size vector before decoding, T5's decoder attends to every encoder token at every generation step. This means a subject line about "Q3 budget" can directly reference the words "Q3" and "budget" in the input body rather than relying on whatever survived the compression bottleneck.
+**Encoder-decoder attention.** Unlike an LSTM, which compresses the entire input into a single fixed-size vector before decoding, T5's decoder attends to every encoder token at every generation step. This means a subject line about "Q3 budget" can directly reference the words "Q3" and "budget" from the body rather than relying on whatever survived a compression bottleneck.
 
-**Temperature and decoding strategy.** At low temperatures (≤ 0.6) the model uses beam search — it explores multiple candidate sequences and returns the highest-probability one. This produces conservative, safe subject lines. At higher temperatures it switches to nucleus (top-p) sampling with p=0.92, which draws from the most probable tokens until their cumulative probability reaches 0.92. This produces more varied, creative output. The five suggestions span the range so the user can pick the tone they need.
+**Fine-tuning vs. training from scratch.** Pre-training a model like T5 requires thousands of GPU-hours. Fine-tuning adapts pre-trained weights to a specific task in a fraction of the time — here, 3 epochs on 13,774 email/subject pairs in under 30 minutes. The model already understands English grammar and professional language; fine-tuning teaches it the email subject-line domain.
 
-**Fine-tuning vs. training from scratch.** Pre-training a model like T5 requires thousands of GPU-hours. Fine-tuning adapts the pre-trained weights to a specific task in a fraction of the time — here, 3 epochs on 13,774 email/subject pairs. The model already understands English grammar and professional language from pre-training; fine-tuning teaches it the email subject-line domain specifically.
+**Temperature and decoding strategy.** At low temperatures (≤ 0.6) the model uses beam search — it explores multiple candidate sequences and returns the highest-probability one, producing conservative, predictable subject lines. At higher temperatures it switches to nucleus (top-p) sampling with p=0.92, drawing from the most probable tokens until their cumulative probability hits 0.92, producing more varied output. The five suggestions span the range so the user can choose the tone they need.
 
-**LSTM baseline (kept in notebook).** The original encoder-decoder LSTM is retained in the notebook for direct comparison. It compresses 200 characters into a single `[h, c]` context vector — a fundamental bottleneck that attention resolves. The comparison makes the quality gap concrete: the LSTM produces plausible but generic output regardless of the input; T5 produces body-grounded suggestions.
+**LSTM baseline.** The original encoder-decoder LSTM (kept in the notebook) uses a character-level vocabulary and compresses 200 input characters into a single `[h, c]` context vector — a fundamental bottleneck that attention resolves. Running both on the same inputs makes the quality gap concrete: the LSTM produces plausible but generic phrases regardless of input; T5 produces body-grounded suggestions.
 
 ---
 
 ## 4. Dataset
 
-**AESLC — Annotated Enron Subject Line Corpus** — ~17,000 real email body/subject pairs from the Enron dataset, annotated for clean subject line alignment.
+**AESLC — Annotated Enron Subject Line Corpus** — ~17,000 real email body/subject pairs from the Enron dataset, professionally annotated for clean subject line alignment.
 
 ```python
 from datasets import load_dataset
@@ -101,7 +103,7 @@ ds = load_dataset('aeslc')
 - **Size:** 14,436 train / 1,960 validation / 1,906 test (before filtering)
 - **After filtering:** 13,774 train / 1,838 validation / 1,825 test
 - **Filter criteria:** body ≥ 20 characters, subject 3–60 characters
-- **Body truncation:** first 200 characters fed to the model
+- **Body truncation:** first 200 characters fed to the model — subject lines are determined by the opening of an email, not its full length
 
 ---
 
@@ -109,37 +111,27 @@ ds = load_dataset('aeslc')
 
 ### T5-small fine-tuned on AESLC
 
-T5-small (60M parameters) was chosen as the best balance between quality and deployability. Larger T5 variants (base, large) produce better output but are impractical for an Azure F1 free-tier deployment — T5-small's model file is 231 MB, which fits comfortably in the zip deploy. Fine-tuning ran for 3 epochs with batch size 16, warmup over 200 steps, and weight decay of 0.01. The best checkpoint (by validation loss) is saved automatically by `Seq2SeqTrainer`.
-
-**Training results**
-
-| Epoch | Eval loss |
-|-------|-----------|
-| 1 | 3.396 |
-| 2 | 3.328 |
-| 3 | 3.309 |
+T5-small (60M parameters) was chosen as the best balance between quality and deployability. Larger T5 variants produce better output but are impractical for an Azure F1 free-tier deployment — T5-small's model file is 231 MB, which fits cleanly in the zip deploy and loads in a few seconds on a cold start. Fine-tuning ran for 3 epochs with batch size 16, warmup over 200 steps, and weight decay of 0.01. `Seq2SeqTrainer` saves the best checkpoint by validation loss automatically.
 
 ### Encoder-decoder LSTM (baseline, notebook only)
 
-The LSTM baseline uses a character-level vocabulary, a 64-dimensional embedding, and a single LSTM layer with 256 units. It is trained with teacher forcing and generates character by character at inference using temperature sampling. It is retained in the notebook as a documented comparison — not served by the API.
+The LSTM baseline uses a character-level vocabulary, a 64-dimensional embedding, and a single LSTM layer with 256 units. It trains with teacher forcing — at each decoding step the true previous character is fed as input rather than the model's own prediction, which stabilises training on short outputs. It is retained in the notebook as a documented comparison, not served by the API.
 
 ---
 
 ## 6. Results
 
-The key qualitative result is content grounding. Given the input:
+| | Epoch 1 | Epoch 2 | Epoch 3 |
+|---|---|---|---|
+| Eval loss | 3.396 | 3.328 | **3.309** |
 
-> *"Following up on our discussion about the Q3 budget proposal. Please review the attached document and confirm the next steps before Friday."*
-
-**LSTM suggestions (all five, regardless of temperature):** generic Enron-era phrases with no connection to Q3, budgets, or deadlines.
-
-**T5 suggestions:** variations on budget review, Q3 follow-up, and action-required framing — drawn from the actual email body.
+The key qualitative result is content grounding. Given the input *"Following up on our discussion about the Q3 budget proposal. Please review the attached document and confirm next steps before Friday"*, the LSTM returns Enron-era generic phrases regardless of temperature. T5 returns variations on budget review, Q3 follow-up, and action-required framing — drawn from the actual email body.
 
 ---
 
-## 7. Inference
+## 7. Inference — temperature and decoding
 
-`generate_subject()` takes a body string and a temperature, tokenizes the input with the `generate subject: ` prefix, and runs either beam search (conservative) or nucleus sampling (balanced/creative).
+`generate_multiple()` generates five suggestions by running `generate_subject()` across a linear temperature range. At the conservative end, beam search finds the highest-probability sequence. At the creative end, nucleus sampling introduces controlled randomness.
 
 ```python
 from generator import generate_multiple
@@ -152,21 +144,38 @@ suggestions = generate_multiple(
 # [
 #   {"subject": "Q3 Budget Proposal Follow-Up", "temperature": 0.5, "style": "conservative"},
 #   {"subject": "Action Required: Q3 Budget Review", "temperature": 0.6, "style": "balanced"},
+#   {"subject": "Next Steps on Q3 Budget",         "temperature": 0.7, "style": "balanced"},
 #   ...
 # ]
 ```
 
-Temperature mapping:
-
-| Range | Strategy | Style label |
-|-------|----------|-------------|
+| Temperature | Decoding | Style label |
+|-------------|----------|-------------|
 | ≤ 0.6 | Beam search (num_beams=4) | conservative |
 | 0.6–0.8 | Nucleus sampling (top_p=0.92) | balanced |
 | > 0.8 | Nucleus sampling (top_p=0.92) | creative |
 
 ---
 
-## 8. API reference
+## 8. Visualisations
+
+Training curves and data distributions are generated by the notebook and committed to `plots/`.
+
+![Training curves](plots/01_training_curves.png)
+
+*Loss and validation loss over epochs — shows convergence without overfitting.*
+
+![Subject length distribution](plots/02_subject_length_distribution.png)
+
+*Distribution of subject line lengths in the AESLC corpus — informs the 3–60 character filter.*
+
+![Body length distribution](plots/03_body_length_distribution.png)
+
+*Distribution of email body lengths — informs the 200-character truncation threshold.*
+
+---
+
+## 9. API reference
 
 ### `POST /generate`
 
@@ -204,7 +213,7 @@ Returns 5 pre-written example email bodies for the demo UI.
 
 ---
 
-## 9. Deployment — Azure App Service
+## 10. Deployment — Azure App Service
 
 ```bash
 # 1. Create resource group and plan
@@ -238,7 +247,7 @@ curl -X POST \
 
 ---
 
-## 10. CI/CD — GitHub Actions
+## 11. CI/CD — GitHub Actions
 
 Every push to `main` runs two jobs: **test** then **deploy**.
 
@@ -259,23 +268,23 @@ az ad sp create-for-rbac \
 
 ---
 
-## 11. Design decisions
+## 12. Design decisions
 
-**T5 over a larger model.** T5-base would produce better output, but its model file (~900 MB) would push the Azure deploy zip over practical limits for a free-tier app, and loading time would be too slow for a demo. T5-small (231 MB) fits cleanly and loads in a few seconds on a cold start.
+**T5 over a larger model.** T5-base would produce better output, but its model file (~900 MB) would push the Azure deploy zip over practical limits for a free-tier app, and cold-start loading time would degrade the demo experience. T5-small (231 MB) fits cleanly and loads in seconds.
 
-**AutoTokenizer instead of T5Tokenizer.** The fine-tuned model is saved with a fast tokenizer (HuggingFace tokenizers backend), which stores vocabulary in `tokenizer.json` rather than a SentencePiece `.model` file. `AutoTokenizer` detects this automatically and loads the correct class; `T5Tokenizer` would require SentencePiece explicitly and fail if the file is absent.
+**AutoTokenizer instead of T5Tokenizer.** The fine-tuned model is saved with a fast tokenizer (HuggingFace tokenizers backend), which stores vocabulary in `tokenizer.json` rather than a SentencePiece `.model` file. `AutoTokenizer` detects this automatically and loads the correct class; `T5Tokenizer` requires SentencePiece explicitly and fails if the file is absent.
 
 **Five suggestions across a temperature range.** A single suggestion at a fixed temperature gives the user no agency over tone. Spanning 0.5–0.9 with beam search at the low end and nucleus sampling at the high end produces genuinely different outputs — not just minor wording variations — so the user can choose between professional-conservative and engaging-creative.
 
-**Kudu zipdeploy over az webapp deploy.** `az webapp deploy` polls the App Service for a completion signal that the F1 free tier never sends, causing GitHub Actions to hang until timeout. Kudu's `/api/zipdeploy` endpoint is fire-and-forget: it accepts the zip, queues the deployment, and returns immediately. The deploy completes in the background without blocking CI.
+**Kudu zipdeploy over az webapp deploy.** `az webapp deploy` polls the App Service for a completion signal that the F1 free tier never sends, causing GitHub Actions to hang until timeout. Kudu's `/api/zipdeploy` endpoint accepts the zip, queues the deployment, and returns immediately — no polling, no hang.
 
-**Git LFS for the model file.** GitHub rejects files over 100 MB. The model checkpoint is 231 MB, so it is tracked via Git LFS (`*.safetensors`). This keeps the repo clone fast (LFS files are downloaded on demand) while keeping the model committed alongside the code that uses it.
+**Git LFS for the model file.** GitHub rejects files over 100 MB. The model checkpoint is 231 MB, so it is tracked via Git LFS (`*.safetensors`). This keeps the repo clone lightweight while keeping the model committed alongside the code that uses it.
 
-**LSTM baseline kept in notebook.** Replacing the LSTM without documenting what it did and why it fell short would lose the comparison. The notebook runs both architectures on the same data, making the quality gap and the architectural reason for it (attention vs. context vector bottleneck) concrete rather than claimed.
+**LSTM baseline kept in the notebook.** Replacing the LSTM without documenting what it did and why it fell short would lose the comparison. The notebook runs both architectures on the same inputs, making the quality gap and the architectural reason for it (attention vs. context vector bottleneck) concrete rather than claimed.
 
 ---
 
-## 12. Dependencies
+## 13. Dependencies
 
 | Package | Version | Purpose |
 |---|---|---|
