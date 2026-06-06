@@ -9,7 +9,8 @@ from config import MODEL_DIR, NUM_SUGGESTIONS, T5_MODEL_DIR
 _INDEX_PATH = Path('templates/index.html')
 _CONFIG_PATH = MODEL_DIR / 't5_config.json'
 
-MODEL_LOADED = T5_MODEL_DIR.exists()
+_model_file = T5_MODEL_DIR / 'model.safetensors'
+MODEL_LOADED = _model_file.exists() and _model_file.stat().st_size > 1_000_000
 
 if MODEL_LOADED:
     from generator import generate_multiple

@@ -31,14 +31,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true
       - uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
       - name: Zip and deploy
         run: |
           zip -rq deploy.zip \
-            main.py generator.py config.py preprocess.py \
-            requirements.txt startup.txt models/ templates/
+            main.py generator.py config.py \
+            requirements.txt startup.txt models/t5/ models/t5_config.json templates/
           TOKEN=$(az account get-access-token --query accessToken -o tsv)
           curl -X POST \
             "https://email-subject-gen-xoc.scm.azurewebsites.net/api/zipdeploy" \
