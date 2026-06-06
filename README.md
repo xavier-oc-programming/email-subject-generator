@@ -1,10 +1,14 @@
 # email-subject-generator
 
+![CI](https://github.com/xavier-oc-programming/email-subject-generator/actions/workflows/ci.yml/badge.svg)
+![Python](https://img.shields.io/badge/python-3.11-blue)
+![Model](https://img.shields.io/badge/model-T5--small-orange)
+![Dataset](https://img.shields.io/badge/dataset-AESLC-green)
+![Azure](https://img.shields.io/badge/deployed-Azure%20App%20Service-0078D4?logo=microsoftazure)
+
 Generates professional email subject line suggestions from an email body
-or topic description using an encoder-decoder LSTM. The encoder compresses
-the input into a context vector; the decoder generates the subject line
-character by character from that context. Trained on 14,000 professional
-emails from the AESLC corpus.
+using T5-small fine-tuned on the AESLC corpus (14,000 Enron email/subject pairs).
+Returns five suggestions spanning conservative to creative tone.
 
 **Live demo → [email-subject-gen-xoc.azurewebsites.net](https://email-subject-gen-xoc.azurewebsites.net)**
 · **API docs → [/docs](https://email-subject-gen-xoc.azurewebsites.net/docs)**
