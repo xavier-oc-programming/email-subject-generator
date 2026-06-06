@@ -43,8 +43,8 @@ class GenerateResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     model_loaded: bool
-    vocab_size: int = None
-    latent_dim: int = None
+    vocab_size: int | None = None
+    latent_dim: int | None = None
 
 
 @app.get("/", response_class=HTMLResponse)
