@@ -1,4 +1,7 @@
-tensorflow>=2.15
+torch>=2.0
+transformers>=4.30
+sentencepiece>=0.1.99
+accelerate>=0.20
 numpy>=1.24,<2.0
 pandas>=2.0
 matplotlib>=3.7

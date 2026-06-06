@@ -4,24 +4,19 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
-from config import MODEL_DIR, NUM_SUGGESTIONS, LATENT_DIM
+from config import MODEL_DIR, NUM_SUGGESTIONS, T5_MODEL_DIR
 
 _INDEX_PATH = Path('templates/index.html')
-_VOCAB_PATH = MODEL_DIR / 'vocab.json'
-_CONFIG_PATH = MODEL_DIR / 'model_config.json'
+_CONFIG_PATH = MODEL_DIR / 't5_config.json'
 
-MODEL_LOADED = (
-    (MODEL_DIR / 'inference_encoder.keras').exists()
-    and (MODEL_DIR / 'inference_decoder.keras').exists()
-    and _VOCAB_PATH.exists()
-)
+MODEL_LOADED = T5_MODEL_DIR.exists()
 
 if MODEL_LOADED:
     from generator import generate_multiple
 
 app = FastAPI(
     title="Email Subject Line Generator",
-    description="Generates professional email subject line suggestions using an encoder-decoder LSTM.",
+    description="Generates professional email subject line suggestions using T5-small fine-tuned on AESLC.",
     version="1.0.0"
 )
 
@@ -59,17 +54,11 @@ def index():
 
 @app.get("/health", response_model=HealthResponse)
 def health():
-    vocab_size = None
-    if MODEL_LOADED and _VOCAB_PATH.exists():
-        with open(_VOCAB_PATH) as f:
-            data = json.load(f)
-        vocab_size = len(data.get('char_to_idx', {}))
-
     return HealthResponse(
         status="ok",
         model_loaded=MODEL_LOADED,
-        vocab_size=vocab_size,
-        latent_dim=LATENT_DIM if MODEL_LOADED else None
+        vocab_size=None,
+        latent_dim=None,
     )
 
 
@@ -94,14 +83,14 @@ def generate(request: GenerateRequest):
         for s in suggestions_raw
     ]
 
-    model_info = "Encoder-Decoder LSTM | Character-level | Trained on AESLC"
+    model_info = "T5-small | Fine-tuned on AESLC | 3 epochs"
     if _CONFIG_PATH.exists():
         with open(_CONFIG_PATH) as f:
             cfg = json.load(f)
         model_info = (
-            f"Encoder-Decoder LSTM | vocab={cfg.get('vocab_size')} | "
-            f"latent_dim={cfg.get('latent_dim')} | "
-            f"val_loss={cfg.get('best_val_loss', 'N/A')}"
+            f"T5-small | Fine-tuned on AESLC | "
+            f"epochs={cfg.get('epochs', 3)} | "
+            f"train_size={cfg.get('train_size', 'N/A')}"
         )
 
     return GenerateResponse(

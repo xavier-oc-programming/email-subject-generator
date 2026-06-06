@@ -42,6 +42,13 @@ NUM_SUGGESTIONS = 5
 # running inference NUM_SUGGESTIONS times with slight temperature
 # variation. Gives the user options to choose from.
 
+# T5
+T5_MODEL_NAME = 't5-small'
+T5_PREFIX = 'generate subject: '
+T5_MAX_INPUT_LEN = 256
+T5_MAX_TARGET_LEN = 32
+T5_MODEL_DIR = MODEL_DIR / 't5'
+
 # Azure
 AZURE_APP_NAME = 'email-subject-gen-xoc'
 AZURE_RESOURCE_GROUP = 'email-subject-gen-rg'

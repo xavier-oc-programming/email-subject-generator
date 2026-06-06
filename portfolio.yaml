@@ -1,12 +1,62 @@
-title: Email Subject Generator — Encoder-Decoder LSTM
+title: Email Subject Generator — T5 Transformer
 slug: email-subject-generator
 category: ai-ml
 date: 2026-06-05
 featured: false
-tags: deep-learning, NLP, text-generation, neural-network, RNN, LSTM, azure, deployment, REST-API, docker, CI-CD, jupyter, web-app
-tech_stack: Python, TensorFlow, Keras, NumPy, Pandas, Matplotlib, FastAPI, Uvicorn, Docker, Azure App Service, GitHub Actions, pytest
+tags: deep-learning, NLP, text-generation, transformer, seq2seq, fine-tuning, azure, deployment, REST-API, CI-CD, jupyter, web-app
+tech_stack: Python, PyTorch, HuggingFace Transformers, T5, Datasets, FastAPI, Uvicorn, Azure App Service, GitHub Actions, pytest
 repo_url: https://github.com/xavier-oc-programming/email-subject-generator
 live_url: https://email-subject-gen-xoc.azurewebsites.net
 demo_url: https://email-subject-gen-xoc.azurewebsites.net
-short_description: |
-  Encoder-decoder LSTM that generates professional email subject lines from an email body. Encoder compresses input to a context vector; decoder generates character by character. Five suggestions returned at varying temperature levels.
+short_description: >
+  T5-small fine-tuned on the AESLC corpus (14k Enron email/subject pairs) to generate
+  professional subject lines from an email body. Five suggestions returned at varying
+  temperature levels — from beam-search conservative to top-p creative sampling.
+full_description: >
+  An email subject line generator built around Google's T5-small (60M parameters), fine-tuned
+  for 3 epochs on the Annotated Enron Subject Line Corpus (AESLC) — 14k real email body/subject
+  pairs. The model frames generation as a text-to-text task: input is prefixed with
+  "generate subject: " and the model learns to produce a concise, relevant subject line.
+
+  An encoder-decoder LSTM baseline (character-level, single context vector) is kept in the
+  notebook for direct comparison — demonstrating exactly where attention-based architectures
+  outperform RNN bottlenecks on content-grounded generation tasks.
+
+  The FastAPI app calls the fine-tuned T5 model and returns five subject suggestions per
+  request, spanning a temperature range from 0.5 (beam search, conservative) to 0.9
+  (top-p sampling, creative). The frontend displays each suggestion with its style label
+  so users can pick the tone that fits.
+
+problem: >
+  Generating subject lines that actually reflect the content of the email body — not just
+  plausible-sounding generic phrases. A character-level LSTM compresses 200 characters into
+  a single context vector with no way to look back at the input during decoding, producing
+  Enron-flavored suggestions unrelated to what the user typed.
+
+solution: >
+  Replaced the LSTM with T5-small fine-tuned on AESLC. T5's encoder-decoder attention lets
+  the decoder attend to all input tokens at every generation step, grounding each subject line
+  in the actual email content. Beam search handles conservative suggestions; nucleus sampling
+  (top-p=0.92) handles creative ones. The LSTM remains in the notebook as a documented baseline.
+
+challenges: >
+  Azure's free hosting tier has a quirk: the standard deployment tools wait for a confirmation
+  signal that the free tier never sends, causing the deploy step to hang forever. The fix was
+  to use a lower-level upload command that just fires the package and moves on without waiting
+  for a response.
+
+  Training on an Apple Silicon Mac hit a subtle crash with no clear error message — the
+  process would silently abort mid-setup. After isolating each step, the cause turned out to
+  be a library ordering problem: the data-loading library leaves some background processes
+  running, and if the model library starts up its own background workers before those finish
+  cleaning up, the two sets of workers collide and crash each other. The fix was to load the
+  tokeniser (the part that reads the vocabulary) before starting the model's compute workers,
+  and to train in a fresh Python environment that didn't have TensorFlow installed — TensorFlow
+  was quietly spinning up its own workers in the background and adding to the collision.
+
+results: >
+  T5-small fine-tuned for 3 epochs on 13,774 filtered email/subject pairs from AESLC.
+  Generated subject lines reflect email body content — meeting requests, budget follow-ups,
+  and project updates each produce contextually appropriate suggestions rather than generic phrases.
+  Direct comparison with the LSTM baseline in the notebook shows the quality gap introduced by
+  attention: the LSTM produces plausible but content-agnostic output; T5 produces body-grounded subject lines.

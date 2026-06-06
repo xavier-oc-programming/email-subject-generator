@@ -1,0 +1,8 @@
+{
+  "model_name": "t5-small",
+  "prefix": "generate subject: ",
+  "max_input_len": 256,
+  "max_target_len": 32,
+  "epochs": 3,
+  "train_size": 13774
+}
