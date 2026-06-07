@@ -9,3 +9,4 @@ venv/
 .azure/
 deploy.zip
 data/
+models/t5/

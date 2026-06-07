@@ -20,8 +20,7 @@ This project generates professional email subject line suggestions from an email
 ## 0. Prerequisites
 
 - Python 3.11+
-- No API keys required — model is committed to the repo and loaded at startup
-- Git LFS required to clone the model weights (`git lfs install` before cloning)
+- No API keys required — model is downloaded at deploy time from HuggingFace Hub
 
 ---
 
@@ -34,7 +33,10 @@ cd email-subject-generator
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 
-# Model is committed — run the app immediately:
+# Download the fine-tuned model from HuggingFace Hub:
+pip install huggingface_hub
+python -c "from huggingface_hub import snapshot_download; snapshot_download('xavier-oc-machinelearn/email-subject-generator-t5', local_dir='models/t5')"
+
 uvicorn main:app --reload
 # → http://localhost:8000
 
@@ -56,7 +58,6 @@ email-subject-generator/
 ├── requirements.txt
 ├── Dockerfile
 ├── startup.txt
-├── .gitattributes             # Git LFS tracking for model.safetensors
 ├── .gitignore
 ├── .github/
 │   └── workflows/
@@ -64,8 +65,8 @@ email-subject-generator/
 ├── templates/
 │   └── index.html             # Demo frontend
 ├── models/
-│   └── t5/                    # Fine-tuned model — committed via Git LFS
-│       ├── model.safetensors  # 231 MB — tracked by LFS
+│   └── t5/                    # Fine-tuned model — downloaded from HuggingFace Hub at deploy time
+│       ├── model.safetensors  # 231 MB — not in git; pulled via snapshot_download
 │       ├── tokenizer.json
 │       ├── tokenizer_config.json
 │       ├── config.json
@@ -251,7 +252,7 @@ curl -X POST \
 
 Every push to `main` runs two jobs: **test** then **deploy**.
 
-The test job installs dependencies and runs `pytest tests/ -v`. The deploy job zips the app files and pushes to Azure via the Kudu zipdeploy endpoint — the same command as the manual deploy above. `az webapp deploy` and the `azure/webapps-deploy` action are not used — both hang on the F1 free tier due to a polling mechanism the free tier never satisfies.
+The test job installs dependencies and runs `pytest tests/ -v`. The deploy job downloads the fine-tuned model from HuggingFace Hub via `snapshot_download`, zips everything together, and pushes to Azure via the Kudu zipdeploy endpoint — the same command as the manual deploy above. `az webapp deploy` and the `azure/webapps-deploy` action are not used — both hang on the F1 free tier due to a polling mechanism the free tier never satisfies. The model is not stored in git — it is pulled fresh each deploy run from `xavier-oc-machinelearn/email-subject-generator-t5`.
 
 **One-time setup** — create a service principal scoped to the resource group:
 
@@ -278,7 +279,7 @@ az ad sp create-for-rbac \
 
 **Kudu zipdeploy over az webapp deploy.** `az webapp deploy` polls the App Service for a completion signal that the F1 free tier never sends, causing GitHub Actions to hang until timeout. Kudu's `/api/zipdeploy` endpoint accepts the zip, queues the deployment, and returns immediately — no polling, no hang.
 
-**Git LFS for the model file.** GitHub rejects files over 100 MB. The model checkpoint is 231 MB, so it is tracked via Git LFS (`*.safetensors`). This keeps the repo clone lightweight while keeping the model committed alongside the code that uses it.
+**HuggingFace Hub for model storage.** GitHub rejects files over 100 MB and Git LFS adds storage and bandwidth costs at scale. Azure Blob Storage would work, but it charges per GB-month and per egress operation — on a portfolio project that redeploys frequently for iteration, that adds up. HuggingFace Hub offers free, unlimited model hosting with no egress fees. The model is published to `xavier-oc-machinelearn/email-subject-generator-t5` and pulled via `snapshot_download` in the deploy job. This was a cost decision, not an unfamiliarity with Azure — Azure Blob was a known option and intentionally passed over.
 
 **LSTM baseline kept in the notebook.** Replacing the LSTM without documenting what it did and why it fell short would lose the comparison. The notebook runs both architectures on the same inputs, making the quality gap and the architectural reason for it (attention vs. context vector bottleneck) concrete rather than claimed.
 
